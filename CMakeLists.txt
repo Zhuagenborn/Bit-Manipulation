@@ -11,7 +11,7 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${PROJECT_BINARY_DIR}/bin)
 
 add_subdirectory(src)
 
-find_package(GTest REQUIRED)
+find_package(GTest)
 if(GTest_FOUND)
     enable_testing()
 
