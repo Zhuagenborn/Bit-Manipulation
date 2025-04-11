@@ -14,6 +14,7 @@ A header-only bit manipulation library written in *C++23*, supporting:
 - Setting bits, bytes, words or double words in an integral value.
 - Filling bits, bytes, words or double words in an integral value.
 - Combining bits, bytes, words or double words to a larger integral value.
+- Writing or reading bytes of an integral or a float value using the specified endianness.
 
 ## Unit Tests
 
@@ -84,6 +85,14 @@ EXPECT_EQ((CombineBits<std::uint32_t, std::uint16_t>(0x1234, 0x5678)), 0x1234567
 constexpr std::uint8_t val {0b0000'0001};
 EXPECT_TRUE(IsBitSet(val, 0));
 EXPECT_FALSE(IsBitSet(val, 1));
+```
+
+```c++
+// Read bytes using the specified endianness.
+constexpr int buf {0x12345678};
+int val {0};
+ReadBytes(buf, val, GetOppositeEndian());
+EXPECT_EQ(val, std::byteswap(buf));
 ```
 
 ## License

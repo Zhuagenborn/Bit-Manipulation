@@ -2,7 +2,17 @@
 
 #include <gtest/gtest.h>
 
+#include <numbers>
+
 using namespace bit;
+
+namespace {
+
+constexpr std::endian GetOppositeEndian() noexcept {
+    return std::endian::native == std::endian::little ? std::endian::big : std::endian::little;
+}
+
+}  // namespace
 
 TEST(BitManip, GetBits) {
     constexpr std::uint32_t val {0x12345678};
@@ -655,4 +665,78 @@ TEST(BitManip, CombineWords) {
 
 TEST(BitManip, CombineDwords) {
     EXPECT_EQ(CombineDwords(0x01234567, 0x89ABCDEF), 0x0123456789ABCDEF);
+}
+
+TEST(BitManip, WriteBytes) {
+    {
+        constexpr int val {0x12345678};
+        int buf {0};
+        EXPECT_TRUE(WriteBytes(val, buf, std::endian::native));
+        EXPECT_EQ(buf, val);
+    }
+    {
+        constexpr double val {std::numbers::pi};
+        double buf {0};
+        EXPECT_TRUE(WriteBytes(val, buf, std::endian::native));
+        EXPECT_NEAR(buf, val, 0.01);
+    }
+    // The buffer size is smaller than the value.
+    {
+        constexpr int val {0x12345678};
+        std::array<std::byte, sizeof(val)> buf {};
+        EXPECT_FALSE(WriteBytes(val, std::span {buf}.first(sizeof(val) - 1), std::endian::native));
+        EXPECT_EQ(std::bit_cast<int>(buf), GetBits(val, 0, (sizeof(val) - 1) * CHAR_BIT));
+    }
+    // The buffer has no space.
+    {
+        constexpr int val {0x12345678};
+        EXPECT_FALSE(WriteBytes(val, {}, std::endian::native));
+    }
+}
+
+TEST(BitManip, ReadBytes) {
+    {
+        constexpr int buf {0x12345678};
+        int val {0};
+        EXPECT_TRUE(ReadBytes(buf, val, std::endian::native));
+        EXPECT_EQ(val, buf);
+    }
+    {
+        constexpr double buf {std::numbers::pi};
+        double val {0};
+        EXPECT_TRUE(ReadBytes(buf, val, std::endian::native));
+        EXPECT_NEAR(val, buf, 0.01);
+    }
+    // The buffer size is smaller than the value.
+    {
+        constexpr int buf {0x12345678};
+        int val {0};
+        EXPECT_FALSE(ReadBytes({reinterpret_cast<const std::byte*>(&buf), sizeof(buf) - 1}, val,
+                               std::endian::native));
+        EXPECT_EQ(val, GetBits(buf, 0, (sizeof(buf) - 1) * CHAR_BIT));
+    }
+    // The buffer has no space.
+    {
+        constexpr int buf {0x12345678};
+        int val {0};
+        EXPECT_FALSE(ReadBytes(std::span<std::byte> {}, val, std::endian::native));
+        EXPECT_EQ(val, 0);
+    }
+    // Write and read bytes using the opposite endianness.
+    {
+        constexpr int val {0x12345678};
+        int write_buf {0};
+        EXPECT_TRUE(WriteBytes(val, write_buf, GetOppositeEndian()));
+        int read_buf {0};
+        EXPECT_TRUE(ReadBytes(write_buf, read_buf, GetOppositeEndian()));
+        EXPECT_EQ(read_buf, val);
+    }
+    {
+        constexpr double val {std::numbers::pi};
+        double write_buf {0};
+        EXPECT_TRUE(WriteBytes(val, write_buf, GetOppositeEndian()));
+        double read_buf {0};
+        EXPECT_TRUE(ReadBytes(write_buf, read_buf, GetOppositeEndian()));
+        EXPECT_NEAR(read_buf, val, 0.01);
+    }
 }

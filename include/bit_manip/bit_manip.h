@@ -10,6 +10,7 @@
  * - Setting bits, bytes, words or double words in an integral value.
  * - Filling bits, bytes, words or double words in an integral value.
  * - Combining bits, bytes, words or double words to a larger integral value.
+ * - Writing or reading bytes of an integral or a float value using the specified endianness.
  *
  * @par GitHub
  * https://github.com/Zhuagenborn
@@ -18,11 +19,14 @@
 #pragma once
 
 #include <algorithm>
+#include <array>
+#include <bit>
 #include <climits>
 #include <concepts>
 #include <cstdint>
 #include <initializer_list>
 #include <ranges>
+#include <span>
 
 namespace bit {
 
@@ -328,6 +332,62 @@ constexpr void ClearHighWord(std::uint32_t& val) noexcept {
 //! Clear the high double word in a quad word.
 constexpr void ClearHighDword(std::uint64_t& val) noexcept {
     ClearDword(val, sizeof(std::uint32_t) * CHAR_BIT);
+}
+
+/**
+ * @brief Writes bytes of a value to a buffer using the specified endianness.
+ *
+ * @return
+ * Whether the buffer is large enough to store the value.
+ * If it is @p false, only some of the bytes were written to the buffer.
+ */
+template <typename T>
+    requires std::is_integral_v<T> || std::is_floating_point_v<T>
+constexpr bool WriteBytes(const T val, const std::span<std::byte> buf,
+                          const std::endian endian = std::endian::native) noexcept {
+    auto tmp_buf {std::bit_cast<std::array<std::byte, sizeof(T)>>(val)};
+    if (endian != std::endian::native) {
+        std::ranges::reverse(tmp_buf);
+    }
+
+    std::ranges::copy(std::span {tmp_buf}.first(std::min(sizeof(T), buf.size())), buf.begin());
+    return buf.size() >= sizeof(T);
+}
+
+//! @overload
+template <typename T>
+constexpr bool WriteBytes(const T val, T& buf,
+                          const std::endian endian = std::endian::native) noexcept {
+    return WriteBytes(val, std::as_writable_bytes(std::span<T> {&buf, 1}), endian);
+}
+
+
+/**
+ * @brief Read bytes from a buffer to a value using the specified endianness.
+ *
+ * @return
+ * Whether the buffer is large enough to load the value from.
+ * If it is @p false, only some of the bytes were loaded from the buffer.
+ */
+template <typename T>
+    requires std::is_integral_v<T> || std::is_floating_point_v<T>
+constexpr bool ReadBytes(const std::span<const std::byte> buf, T& val,
+                         const std::endian endian = std::endian::native) noexcept {
+    std::array<std::byte, sizeof(T)> tmp_buf {};
+    std::ranges::copy(buf.first(std::min(sizeof(T), buf.size())), tmp_buf.begin());
+    if (endian != std::endian::native) {
+        std::ranges::reverse(tmp_buf);
+    }
+
+    val = std::bit_cast<T>(tmp_buf);
+    return buf.size() >= sizeof(T);
+}
+
+//! @overload
+template <typename T>
+constexpr bool ReadBytes(const T buf, T& val,
+                         const std::endian endian = std::endian::native) noexcept {
+    return ReadBytes(std::as_bytes(std::span<const T> {&buf, 1}), val, endian);
 }
 
 }  // namespace bit
