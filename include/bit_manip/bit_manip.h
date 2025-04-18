@@ -10,6 +10,7 @@
  * - Setting bits, bytes, words or double words in an integral value.
  * - Filling bits, bytes, words or double words in an integral value.
  * - Combining bits, bytes, words or double words to a larger integral value.
+ * - Writing or reading bytes of an integral or a float value using the specified endianness.
  *
  * @par GitHub
  * https://github.com/Zhuagenborn
@@ -18,18 +19,21 @@
 #pragma once
 
 #include <algorithm>
+#include <array>
+#include <bit>
 #include <climits>
 #include <concepts>
 #include <cstdint>
 #include <initializer_list>
 #include <ranges>
+#include <span>
 
 namespace bit {
 
 //! Get the specified bits in an integral value.
 constexpr auto GetBits(const std::integral auto val, const std::size_t begin,
                        const std::size_t count) noexcept {
-    if (count < sizeof(val) * CHAR_BIT) {
+    if (count < sizeof(val) * CHAR_BIT) [[likely]] {
         const auto mask {((static_cast<decltype(val)>(1) << count) - 1) << begin};
         return static_cast<decltype(val)>((val & mask) >> begin);
     } else {
@@ -40,7 +44,7 @@ constexpr auto GetBits(const std::integral auto val, const std::size_t begin,
 //! Clear the specified bits in an integral value.
 constexpr void ClearBits(std::integral auto& val, const std::size_t begin,
                          const std::size_t count) noexcept {
-    if (count < sizeof(val) * CHAR_BIT) {
+    if (count < sizeof(val) * CHAR_BIT) [[likely]] {
         const auto mask {((static_cast<std::decay_t<decltype(val)>>(1) << count) - 1) << begin};
         val &= ~mask;
     } else {
@@ -52,7 +56,7 @@ constexpr void ClearBits(std::integral auto& val, const std::size_t begin,
 template <std::integral Bits>
 constexpr void SetBits(std::integral auto& val, const Bits bits, const std::size_t begin,
                        const std::size_t count = sizeof(Bits) * CHAR_BIT) noexcept {
-    if (count < sizeof(val) * CHAR_BIT) {
+    if (count < sizeof(val) * CHAR_BIT) [[likely]] {
         ClearBits(val, begin, count);
         const auto mask {((static_cast<std::decay_t<decltype(val)>>(1) << count) - 1) << begin};
         val |= (static_cast<std::decay_t<decltype(val)>>(bits) << begin) & mask;
@@ -328,6 +332,71 @@ constexpr void ClearHighWord(std::uint32_t& val) noexcept {
 //! Clear the high double word in a quad word.
 constexpr void ClearHighDword(std::uint64_t& val) noexcept {
     ClearDword(val, sizeof(std::uint32_t) * CHAR_BIT);
+}
+
+/**
+ * @brief Writes bytes of a value to a buffer using the specified endianness.
+ *
+ * @return
+ * Whether the buffer is large enough to store the value.
+ * If it is @p false, bytes are written to the buffer from the least significant byte.
+ */
+template <typename T>
+    requires std::is_arithmetic_v<T> || std::is_same_v<T, std::byte>
+constexpr bool WriteBytes(const T& val, const std::span<std::byte> buf,
+                          const std::endian endian = std::endian::native) noexcept {
+    if constexpr (sizeof(T) > sizeof(std::byte)) {
+        auto tmp_buf {std::bit_cast<std::array<std::byte, sizeof(T)>>(val)};
+        const auto size {std::min(sizeof(T), buf.size())};
+        if (endian != std::endian::native) [[likely]] {
+            std::ranges::reverse(tmp_buf);
+            std::ranges::copy(std::span {tmp_buf}.last(size), buf.begin());
+        } else {
+            std::ranges::copy(std::span {tmp_buf}.first(size), buf.begin());
+        }
+
+        return buf.size() >= sizeof(T);
+    } else {
+        if (!buf.empty()) [[likely]] {
+            buf.front() = static_cast<std::byte>(val);
+            return true;
+        } else {
+            return false;
+        }
+    }
+}
+
+/**
+ * @brief Read bytes from a buffer to a value using the specified endianness.
+ *
+ * @return
+ * Whether the buffer is large enough to load the value from.
+ * If it is @p false, bytes are read to the buffer from the least significant byte.
+ */
+template <typename T>
+    requires std::is_arithmetic_v<T> || std::is_same_v<T, std::byte>
+constexpr bool ReadBytes(const std::span<const std::byte> buf, T& val,
+                         const std::endian endian = std::endian::native) noexcept {
+    if constexpr (sizeof(T) > sizeof(std::byte)) {
+        std::array<std::byte, sizeof(T)> tmp_buf {};
+        const auto size {std::min(sizeof(T), buf.size())};
+        if (endian != std::endian::native) [[likely]] {
+            std::ranges::copy(buf.first(size), tmp_buf.end() - size);
+            std::ranges::reverse(tmp_buf);
+        } else {
+            std::ranges::copy(buf.first(size), tmp_buf.begin());
+        }
+
+        val = std::bit_cast<T>(tmp_buf);
+        return buf.size() >= sizeof(T);
+    } else {
+        if (!buf.empty()) [[likely]] {
+            val = static_cast<T>(buf.front());
+            return true;
+        } else {
+            return false;
+        }
+    }
 }
 
 }  // namespace bit
