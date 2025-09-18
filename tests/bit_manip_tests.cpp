@@ -351,19 +351,36 @@ TEST(BitManip, IsNoneBitSet) {
 }
 
 TEST(BitManip, SetBit) {
-    std::uint8_t val {0};
+    {
+        std::uint8_t val {0};
 
-    SetBit(val, 0);
-    EXPECT_EQ(val, 0b0000'0001);
+        SetBit(val, 0);
+        EXPECT_EQ(val, 0b0000'0001);
 
-    SetBit(val, 1);
-    EXPECT_EQ(val, 0b0000'0011);
+        SetBit(val, 1);
+        EXPECT_EQ(val, 0b0000'0011);
 
-    SetBit(val, 4);
-    EXPECT_EQ(val, 0b0001'0011);
+        SetBit(val, 4);
+        EXPECT_EQ(val, 0b0001'0011);
 
-    SetBit(val, 7);
-    EXPECT_EQ(val, 0b1001'0011);
+        SetBit(val, 7);
+        EXPECT_EQ(val, 0b1001'0011);
+    }
+    {
+        std::uint8_t val {0b1111'1111};
+
+        SetBit(val, 0, false);
+        EXPECT_EQ(val, 0b1111'1110);
+
+        SetBit(val, 1, false);
+        EXPECT_EQ(val, 0b1111'1100);
+
+        SetBit(val, 4, false);
+        EXPECT_EQ(val, 0b1110'1100);
+
+        SetBit(val, 7, false);
+        EXPECT_EQ(val, 0b0110'1100);
+    }
 }
 
 TEST(BitManip, ClearBit) {

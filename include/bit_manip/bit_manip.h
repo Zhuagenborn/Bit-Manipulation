@@ -124,20 +124,6 @@ constexpr bool IsBitSet(const std::byte byte, const std::size_t idx) noexcept {
     return IsBitSet(std::to_integer<std::uint8_t>(byte), idx);
 }
 
-//! Set a bit in an integral value.
-constexpr void SetBit(std::integral auto& val, const std::size_t idx) noexcept {
-    if (idx < sizeof(val) * CHAR_BIT) [[likely]] {
-        val |= (static_cast<std::decay_t<decltype(val)>>(1) << idx);
-    }
-}
-
-//! @overload
-constexpr void SetBit(std::byte& byte, const std::size_t idx) noexcept {
-    auto val {std::to_integer<std::uint8_t>(byte)};
-    SetBit(val, idx);
-    byte = static_cast<std::byte>(val);
-}
-
 //! Clear a bit in an integral value.
 constexpr void ClearBit(std::integral auto& val, const std::size_t idx) noexcept {
     if (idx < sizeof(val) * CHAR_BIT) [[likely]] {
@@ -162,6 +148,25 @@ constexpr void ClearBits(std::integral auto& val,
 constexpr void ClearBits(std::byte& byte, const std::initializer_list<std::size_t> idxs) noexcept {
     auto val {std::to_integer<std::uint8_t>(byte)};
     ClearBits(val, idxs);
+    byte = static_cast<std::byte>(val);
+}
+
+//! Set a bit in an integral value.
+constexpr void SetBit(std::integral auto& val, const std::size_t idx,
+                      const bool set = true) noexcept {
+    if (set) {
+        if (idx < sizeof(val) * CHAR_BIT) [[likely]] {
+            val |= (static_cast<std::decay_t<decltype(val)>>(1) << idx);
+        }
+    } else {
+        ClearBit(val, idx);
+    }
+}
+
+//! @overload
+constexpr void SetBit(std::byte& byte, const std::size_t idx, const bool set = true) noexcept {
+    auto val {std::to_integer<std::uint8_t>(byte)};
+    SetBit(val, idx, set);
     byte = static_cast<std::byte>(val);
 }
 
